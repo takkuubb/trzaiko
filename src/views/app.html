@@ -146,7 +146,7 @@ function renderSelectedItems(){
       <div class="flex-1 min-w-0"><div class="font-bold text-sm">${p?.name||'?'}</div><div class="text-xs text-gray-500">${p?.code||''} | 在庫: <span class="${over?'text-red-600 font-bold':'text-teal-600 font-bold'}">${stock}</span></div>${over?'<div class="text-xs text-red-600 font-bold mt-1">⚠️ 在庫超過</div>':''}</div>
       <div class="flex items-center gap-2">
         <div class="qty-btn qty-minus" onclick="changeQty(${s.product_id},-1)">−</div>
-        <span class="w-10 text-center font-bold text-lg ${over?'text-red-600':''}" id="qty-${s.product_id}">${s.quantity}</span>
+        <input type="number" inputmode="numeric" min="1" max="${stock}" value="${s.quantity}" class="w-14 text-center font-bold text-lg border-2 rounded-lg ${over?'text-red-600 border-red-400':'border-gray-200'}" style="min-height:44px" id="qty-${s.product_id}" onchange="setQty(${s.product_id},this.value)">
         <div class="qty-btn qty-plus" onclick="changeQty(${s.product_id},1)">＋</div>
       </div>
       <button onclick="toggleProduct(${s.product_id})" class="text-red-400 text-lg"><i class="fas fa-times-circle"></i></button>
@@ -158,9 +158,19 @@ function changeQty(pid,d){
   const s=selectedItems.find(x=>x.product_id===pid);
   if(!s)return;
   const p=products.find(x=>x.id===pid);
-  const maxQty=p?.stock||100;
-  s.quantity=Math.max(1,Math.min(maxQty,s.quantity+d));
-  if(d>0&&s.quantity>=maxQty)toast(`在庫上限 ${maxQty}個`);
+  const stock=p?.stock||100;
+  s.quantity=Math.max(1,s.quantity+d);
+  if(s.quantity>stock)toast(`⚠️ 在庫数(${stock})を超えています`);
+  renderSelectedItems();
+}
+function setQty(pid,val){
+  const s=selectedItems.find(x=>x.product_id===pid);
+  if(!s)return;
+  const p=products.find(x=>x.id===pid);
+  const stock=p?.stock||100;
+  const v=parseInt(val);
+  s.quantity=isNaN(v)||v<1?1:v;
+  if(s.quantity>stock)toast(`⚠️ 在庫数(${stock})を超えています`);
   renderSelectedItems();
 }
 
