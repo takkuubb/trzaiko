@@ -140,11 +140,13 @@ function renderSelectedItems(){
   if(!selectedItems.length){el.innerHTML='';return}
   el.innerHTML='<h3 class="text-sm font-bold text-gray-700 mb-2">選択済み商品</h3>'+selectedItems.map(s=>{
     const p=products.find(x=>x.id===s.product_id);
-    return `<div class="card flex items-center gap-3">
-      <div class="flex-1 min-w-0"><div class="font-bold text-sm">${p?.name||'?'}</div><div class="text-xs text-gray-500">${p?.code||''}</div></div>
+    const stock=p?.stock||0;
+    const over=s.quantity>stock;
+    return `<div class="card flex items-center gap-3 ${over?'border-2 border-red-400':''}">
+      <div class="flex-1 min-w-0"><div class="font-bold text-sm">${p?.name||'?'}</div><div class="text-xs text-gray-500">${p?.code||''} | 在庫: <span class="${over?'text-red-600 font-bold':'text-teal-600 font-bold'}">${stock}</span></div>${over?'<div class="text-xs text-red-600 font-bold mt-1">⚠️ 在庫超過</div>':''}</div>
       <div class="flex items-center gap-2">
         <div class="qty-btn qty-minus" onclick="changeQty(${s.product_id},-1)">−</div>
-        <span class="w-10 text-center font-bold text-lg" id="qty-${s.product_id}">${s.quantity}</span>
+        <span class="w-10 text-center font-bold text-lg ${over?'text-red-600':''}" id="qty-${s.product_id}">${s.quantity}</span>
         <div class="qty-btn qty-plus" onclick="changeQty(${s.product_id},1)">＋</div>
       </div>
       <button onclick="toggleProduct(${s.product_id})" class="text-red-400 text-lg"><i class="fas fa-times-circle"></i></button>
@@ -155,21 +157,25 @@ function renderSelectedItems(){
 function changeQty(pid,d){
   const s=selectedItems.find(x=>x.product_id===pid);
   if(!s)return;
-  s.quantity=Math.max(1,Math.min(100,s.quantity+d));
-  const el=document.getElementById('qty-'+pid);
-  if(el)el.textContent=s.quantity;
+  const p=products.find(x=>x.id===pid);
+  const maxQty=p?.stock||100;
+  s.quantity=Math.max(1,Math.min(maxQty,s.quantity+d));
+  if(d>0&&s.quantity>=maxQty)toast(`在庫上限 ${maxQty}個`);
+  renderSelectedItems();
 }
 
 function confirmRequest(){
   const name=document.getElementById('caseName')?.value.trim();
   if(!name){toast('案件名を入力してください');return}
   if(!selectedItems.length){toast('商品を1つ以上選択してください');return}
-  const rows=selectedItems.map(s=>{const p=products.find(x=>x.id===s.product_id);return `<tr><td class="py-1">${p?.name||'?'}</td><td class="py-1 text-right font-bold">${s.quantity}</td></tr>`}).join('');
+  const overItems=selectedItems.filter(s=>{const p=products.find(x=>x.id===s.product_id);return s.quantity>(p?.stock||0)});
+  if(overItems.length){const names=overItems.map(s=>{const p=products.find(x=>x.id===s.product_id);return p?.name||'?'});toast('在庫超過: '+names.join(', '));return}
+  const rows=selectedItems.map(s=>{const p=products.find(x=>x.id===s.product_id);return `<tr><td class="py-1">${p?.name||'?'}</td><td class="py-1 text-right font-bold">${s.quantity}</td><td class="py-1 text-right text-xs text-gray-500">在庫:${p?.stock||0}</td></tr>`}).join('');
   document.getElementById('modal').innerHTML=`
     <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
       <h3 class="text-lg font-bold mb-3">📋 依頼内容の確認</h3>
       <div class="mb-3"><span class="text-sm text-gray-500">案件名:</span><span class="font-bold ml-2">${name}</span></div>
-      <table class="w-full text-sm mb-4"><thead><tr class="border-b"><th class="text-left py-1">商品</th><th class="text-right py-1">数量</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="w-full text-sm mb-4"><thead><tr class="border-b"><th class="text-left py-1">商品</th><th class="text-right py-1">数量</th><th class="text-right py-1">在庫</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="flex gap-3">
         <button onclick="closeModal()" class="btn btn-o flex-1">戻る</button>
         <button onclick="submitRequest()" class="btn btn-p flex-1"><i class="fas fa-paper-plane mr-1"></i>依頼する</button>
