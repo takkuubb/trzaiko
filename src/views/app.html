@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>東洋リース在庫管理</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+body{font-family:'Hiragino Sans','Noto Sans JP',system-ui,sans-serif;background:#f0f4f8;padding-bottom:72px}
+.btn{min-height:48px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;font-weight:600;transition:all .15s;cursor:pointer;padding:0 16px;font-size:14px}
+.btn-p{background:#0d9488;color:#fff}.btn-p:hover{background:#0f766e}
+.btn-s{background:#059669;color:#fff}.btn-s:hover{background:#047857}
+.btn-d{background:#dc2626;color:#fff}.btn-d:hover{background:#b91c1c}
+.btn-o{border:2px solid #d1d5db;color:#374151;background:#fff}.btn-o:hover{background:#f3f4f6}
+.card{background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:16px;margin-bottom:12px}
+.inp{width:100%;min-height:48px;border:2px solid #e5e7eb;border-radius:12px;padding:10px 14px;font-size:16px;transition:border .15s}
+.inp:focus{border-color:#0d9488;outline:none;box-shadow:0 0 0 3px rgba(13,148,136,.15)}
+select.inp{appearance:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E") no-repeat right 14px center/12px;padding-right:36px}
+.st-requested{color:#d97706;background:#fffbeb;border:1px solid #fde68a;padding:2px 10px;border-radius:8px;font-size:12px;font-weight:600}
+.st-lending{color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;padding:2px 10px;border-radius:8px;font-size:12px;font-weight:600}
+.st-returned{color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;padding:2px 10px;border-radius:8px;font-size:12px;font-weight:600}
+.nav-bottom{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;z-index:50;padding:4px 0 env(safe-area-inset-bottom)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px;font-size:10px;color:#6b7280;cursor:pointer;transition:color .15s}
+.nav-item.active{color:#0d9488}
+.nav-item i{font-size:20px;margin-bottom:2px}
+.badge{background:#dc2626;color:#fff;font-size:10px;border-radius:10px;padding:1px 6px;position:absolute;top:-4px;right:-8px;min-width:16px;text-align:center}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center}
+.modal-content{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;padding:20px;animation:slideUp .2s}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#065f46;color:#fff;padding:12px 24px;border-radius:12px;z-index:200;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.qty-btn{width:48px;height:48px;border-radius:12px;font-size:20px;font-weight:bold;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+.qty-plus{background:#dcfce7;color:#059669;border:2px solid #bbf7d0}
+.qty-minus{background:#fee2e2;color:#dc2626;border:2px solid #fecaca}
+.check-item{min-height:56px;display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;border:2px solid #e5e7eb;margin-bottom:8px;cursor:pointer}
+.check-item.checked{border-color:#0d9488;background:#f0fdfa}
+@media(min-width:640px){.modal-content{border-radius:20px;margin:auto;max-height:80vh}}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="bg-teal-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+  <div class="flex items-center gap-2"><i class="fas fa-boxes-stacked"></i><span class="font-bold text-sm">東洋リース在庫管理</span></div>
+  <div class="flex items-center gap-3">
+    <button onclick="toggleNotif()" class="relative text-teal-200 hover:text-white"><i class="fas fa-bell text-lg"></i><span id="notifBadge" class="badge hidden">0</span></button>
+    <button onclick="showSettings()" class="text-teal-200 hover:text-white"><i class="fas fa-cog"></i></button>
+  </div>
+</header>
+
+<!-- Notification Popup -->
+<div id="notifPopup" class="hidden fixed top-14 right-2 w-80 max-h-96 overflow-y-auto bg-white rounded-xl shadow-2xl z-60 border" style="z-index:60">
+  <div class="p-3 border-b font-bold text-sm text-gray-700">🔔 通知</div>
+  <div id="notifList" class="p-2"></div>
+</div>
+
+<!-- Pages -->
+<div id="page-new-request" class="page p-4 max-w-lg mx-auto hidden"></div>
+<div id="page-my-cases" class="page p-4 max-w-lg mx-auto hidden"></div>
+<div id="page-cases" class="page p-4 max-w-lg mx-auto hidden"></div>
+<div id="page-case-detail" class="page p-4 max-w-lg mx-auto hidden"></div>
+<div id="page-transactions" class="page p-4 max-w-2xl mx-auto hidden"></div>
+<div id="page-inventory" class="page p-4 max-w-lg mx-auto hidden"></div>
+<div id="page-products" class="page p-4 max-w-lg mx-auto hidden"></div>
+<div id="page-users" class="page p-4 max-w-lg mx-auto hidden"></div>
+
+<!-- Bottom Nav -->
+<nav class="nav-bottom" id="bottomNav"></nav>
+<!-- Modal -->
+<div id="modal"></div>
+
+<script>
+const B='/trzaiko';
+let user=null, products=[], notifOpen=false;
+
+async function api(p,o){const r=await fetch(B+p,o);if(r.status===401){location.href=B+'/login';return null}return r.json()}
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2500)}
+function closeModal(){document.getElementById('modal').innerHTML=''}
+function stLabel(s){return s==='requested'?'依頼中':s==='lending'?'貸出中':s==='returned'?'返却完了':s}
+function stClass(s){return 'st-'+s}
+function fmtDt(d){if(!d)return'-';return d.replace('T',' ').substring(0,16)}
+function showPage(p){
+  document.querySelectorAll('.page').forEach(el=>el.classList.add('hidden'));
+  const pg=document.getElementById('page-'+p);if(pg)pg.classList.remove('hidden');
+  document.querySelectorAll('#bottomNav .nav-item').forEach(el=>el.classList.toggle('active',el.dataset.page===p));
+}
+
+
+// ===================== 営業: 新規依頼 =====================
+let selectedItems=[];
+async function loadNewRequest(){
+  products=await api('/api/products')||[];
+  selectedItems=[];
+  const el=document.getElementById('page-new-request');
+  el.innerHTML=`
+    <h2 class="text-lg font-bold text-gray-800 mb-3">📋 新規貸出依頼</h2>
+    <div class="card">
+      <label class="block text-sm font-medium text-gray-600 mb-1">案件名 <span class="text-red-500">*</span></label>
+      <input type="text" id="caseName" class="inp" placeholder="案件名を入力...">
+    </div>
+    <div class="card">
+      <label class="block text-sm font-medium text-gray-600 mb-2">商品選択</label>
+      <input type="text" id="prodSearch" class="inp mb-2" placeholder="🔍 商品を検索..." oninput="filterProducts()">
+      <div id="prodList" class="max-h-60 overflow-y-auto"></div>
+    </div>
+    <div id="selectedList" class="mb-3"></div>
+    <button onclick="confirmRequest()" class="btn btn-p w-full text-lg"><i class="fas fa-paper-plane mr-2"></i>センターに依頼する</button>`;
+  renderProductList();
+}
+
+function filterProducts(){
+  renderProductList(document.getElementById('prodSearch').value);
+}
+
+function renderProductList(q){
+  const list=products.filter(p=>p.active&&(!q||p.code.toLowerCase().includes(q.toLowerCase())||p.name.includes(q)));
+  document.getElementById('prodList').innerHTML=list.map(p=>{
+    const sel=selectedItems.find(s=>s.product_id===p.id);
+    return `<div class="check-item ${sel?'checked':''}" onclick="toggleProduct(${p.id})">
+      <i class="fas ${sel?'fa-check-square text-teal-600':'fa-square text-gray-300'} text-xl"></i>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-sm">${p.name}</div>
+        <div class="text-xs text-gray-500">${p.code} | 在庫: ${p.stock}</div>
+      </div>
+    </div>`;
+  }).join('')||'<p class="text-gray-400 text-sm py-4 text-center">商品がありません</p>';
+}
+
+function toggleProduct(pid){
+  const idx=selectedItems.findIndex(s=>s.product_id===pid);
+  if(idx>=0)selectedItems.splice(idx,1);
+  else selectedItems.push({product_id:pid,quantity:1});
+  renderProductList(document.getElementById('prodSearch')?.value);
+  renderSelectedItems();
+}
+
+function renderSelectedItems(){
+  const el=document.getElementById('selectedList');
+  if(!selectedItems.length){el.innerHTML='';return}
+  el.innerHTML='<h3 class="text-sm font-bold text-gray-700 mb-2">選択済み商品</h3>'+selectedItems.map(s=>{
+    const p=products.find(x=>x.id===s.product_id);
+    return `<div class="card flex items-center gap-3">
+      <div class="flex-1 min-w-0"><div class="font-bold text-sm">${p?.name||'?'}</div><div class="text-xs text-gray-500">${p?.code||''}</div></div>
+      <div class="flex items-center gap-2">
+        <div class="qty-btn qty-minus" onclick="changeQty(${s.product_id},-1)">−</div>
+        <span class="w-10 text-center font-bold text-lg" id="qty-${s.product_id}">${s.quantity}</span>
+        <div class="qty-btn qty-plus" onclick="changeQty(${s.product_id},1)">＋</div>
+      </div>
+      <button onclick="toggleProduct(${s.product_id})" class="text-red-400 text-lg"><i class="fas fa-times-circle"></i></button>
+    </div>`;
+  }).join('');
+}
+
+function changeQty(pid,d){
+  const s=selectedItems.find(x=>x.product_id===pid);
+  if(!s)return;
+  s.quantity=Math.max(1,Math.min(100,s.quantity+d));
+  const el=document.getElementById('qty-'+pid);
+  if(el)el.textContent=s.quantity;
+}
+
+function confirmRequest(){
+  const name=document.getElementById('caseName')?.value.trim();
+  if(!name){toast('案件名を入力してください');return}
+  if(!selectedItems.length){toast('商品を1つ以上選択してください');return}
+  const rows=selectedItems.map(s=>{const p=products.find(x=>x.id===s.product_id);return `<tr><td class="py-1">${p?.name||'?'}</td><td class="py-1 text-right font-bold">${s.quantity}</td></tr>`}).join('');
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-3">📋 依頼内容の確認</h3>
+      <div class="mb-3"><span class="text-sm text-gray-500">案件名:</span><span class="font-bold ml-2">${name}</span></div>
+      <table class="w-full text-sm mb-4"><thead><tr class="border-b"><th class="text-left py-1">商品</th><th class="text-right py-1">数量</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="flex gap-3">
+        <button onclick="closeModal()" class="btn btn-o flex-1">戻る</button>
+        <button onclick="submitRequest()" class="btn btn-p flex-1"><i class="fas fa-paper-plane mr-1"></i>依頼する</button>
+      </div>
+    </div></div>`;
+}
+
+async function submitRequest(){
+  const name=document.getElementById('caseName').value.trim();
+  closeModal();
+  const r=await api('/api/cases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,items:selectedItems})});
+  if(r?.success){toast('依頼を送信しました');selectedItems=[];loadNewRequest()}else toast(r?.error||'エラー');
+}
+
+// ===================== 営業: 案件一覧 =====================
+async function loadMyCases(){
+  const el=document.getElementById('page-my-cases');
+  el.innerHTML='<h2 class="text-lg font-bold text-gray-800 mb-3">📦 案件一覧</h2><div class="flex gap-2 mb-3"><button class="btn btn-o text-xs" onclick="filterMy(\'\')">全て</button><button class="btn btn-o text-xs" onclick="filterMy(\'requested\')">依頼中</button><button class="btn btn-o text-xs" onclick="filterMy(\'lending\')">貸出中</button><button class="btn btn-o text-xs" onclick="filterMy(\'returned\')">返却完了</button></div><div id="myCaseList"></div>';
+  filterMy('');
+}
+
+async function filterMy(st){
+  const cases=await api('/api/cases'+(st?'?status='+st:''));
+  if(!cases)return;
+  document.getElementById('myCaseList').innerHTML=cases.length?cases.map(c=>`
+    <div class="card" onclick="showCaseDetail(${c.id})" style="cursor:pointer">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-bold text-sm">${c.name}</span>
+        <span class="${stClass(c.status)}">${stLabel(c.status)}</span>
+      </div>
+      <div class="text-xs text-gray-500">${fmtDt(c.requested_at)} | ${c.item_count}品目</div>
+    </div>`).join(''):'<p class="text-gray-400 text-center py-8">案件がありません</p>';
+}
+
+// ===================== 案件一覧 (センター/管理者) =====================
+async function loadCases(){
+  const el=document.getElementById('page-cases');
+  el.innerHTML=`<h2 class="text-lg font-bold text-gray-800 mb-3">📦 案件一覧</h2>
+    <div class="flex gap-2 mb-2 flex-wrap">
+      <button class="btn btn-o text-xs" onclick="filterCases('')">全て</button>
+      <button class="btn btn-o text-xs" onclick="filterCases('requested')">依頼中</button>
+      <button class="btn btn-o text-xs" onclick="filterCases('lending')">貸出中</button>
+      <button class="btn btn-o text-xs" onclick="filterCases('returned')">返却完了</button>
+    </div>
+    <input type="text" id="caseSearch" class="inp mb-3" placeholder="🔍 案件名検索..." oninput="filterCases()">
+    <div id="caseList"></div>`;
+  filterCases('');
+}
+
+async function filterCases(st){
+  const search=document.getElementById('caseSearch')?.value||'';
+  const q=new URLSearchParams();
+  if(st)q.set('status',st);
+  if(search)q.set('search',search);
+  const cases=await api('/api/cases?'+q);
+  if(!cases)return;
+  document.getElementById('caseList').innerHTML=cases.length?cases.map(c=>`
+    <div class="card" onclick="showCaseDetail(${c.id})" style="cursor:pointer">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-bold text-sm truncate flex-1 mr-2">${c.name}</span>
+        <span class="${stClass(c.status)}">${stLabel(c.status)}</span>
+      </div>
+      <div class="text-xs text-gray-500">依頼者: ${c.requester_name} | ${fmtDt(c.requested_at)} | ${c.item_count}品目</div>
+    </div>`).join(''):'<p class="text-gray-400 text-center py-8">案件がありません</p>';
+}
+
+// ===================== 案件詳細 =====================
+async function showCaseDetail(id){
+  showPage('case-detail');
+  const el=document.getElementById('page-case-detail');
+  el.innerHTML='<div class="text-center py-8"><div class="animate-spin w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full mx-auto"></div></div>';
+  const c=await api('/api/cases/'+id);
+  if(!c){el.innerHTML='<p class="text-red-500">案件が見つかりません</p>';return}
+  updateNotifCount();
+
+  let html=`<button onclick="goBack()" class="text-teal-600 text-sm mb-3 inline-block"><i class="fas fa-arrow-left mr-1"></i>戻る</button>
+    <div class="card">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-bold">${c.name}</h2>
+        <span class="${stClass(c.status)}">${stLabel(c.status)}</span>
+      </div>
+      <div class="text-xs text-gray-500 space-y-1">
+        <div>依頼者: ${c.requester_name} (${fmtDt(c.requested_at)})</div>
+        ${c.lender_name?`<div>貸出処理: ${c.lender_name} (${fmtDt(c.lent_at)})</div>`:''}
+        ${c.returner_name?`<div>返却処理: ${c.returner_name} (${fmtDt(c.returned_at)})</div>`:''}
+      </div>
+    </div>`;
+
+  // Items list
+  html+='<h3 class="text-sm font-bold text-gray-700 mb-2">商品明細</h3>';
+
+  if(c.status==='requested'&&(user.role==='center'||user.role==='admin')){
+    // Lending mode: checklist + center_ref
+    html+=c.items.map((it,i)=>`
+      <div class="check-item" id="pick-${it.id}" onclick="togglePick(${it.id})">
+        <i class="fas fa-square text-gray-300 text-xl" id="pick-icon-${it.id}"></i>
+        <div class="flex-1">
+          <div class="font-bold text-sm">${it.product_name}</div>
+          <div class="text-xs text-gray-500">${it.product_code} | 数量: ${it.quantity}</div>
+          <input type="text" inputmode="numeric" class="inp mt-1" style="min-height:40px;font-size:14px" placeholder="管理番号（任意）" id="ref-${it.id}" onclick="event.stopPropagation()">
+        </div>
+      </div>`).join('');
+    html+=`<button onclick="processLend(${c.id})" class="btn btn-p w-full text-lg mt-3"><i class="fas fa-truck mr-2"></i>貸出処理を実行</button>`;
+
+  }else if(c.status==='lending'&&(user.role==='center'||user.role==='admin')){
+    // Return mode
+    html+=`<button onclick="returnAll(${c.id})" class="btn btn-s w-full mb-3"><i class="fas fa-undo-alt mr-2"></i>一括返却（全数）</button>`;
+    html+=c.items.map(it=>{
+      const remaining=it.quantity-it.returned_quantity;
+      return `<div class="card">
+        <div class="flex items-center justify-between mb-1">
+          <div><div class="font-bold text-sm">${it.product_name}</div><div class="text-xs text-gray-500">${it.product_code}${it.center_ref?' | 管理#'+it.center_ref:''}</div></div>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-500">貸出: ${it.quantity} | 返却済: ${it.returned_quantity} | 残: ${remaining}</div>
+          ${remaining>0?`<div class="flex items-center gap-2">
+            <div class="qty-btn qty-minus" onclick="adjReturn(${it.id},-1,${remaining})">−</div>
+            <span class="w-8 text-center font-bold" id="ret-${it.id}">0</span>
+            <div class="qty-btn qty-plus" onclick="adjReturn(${it.id},1,${remaining})">＋</div>
+          </div>`:'<span class="text-green-600 text-xs font-bold">完了</span>'}
+        </div>
+      </div>`;
+    }).join('');
+    html+=`<button onclick="processReturn(${c.id})" class="btn btn-s w-full text-lg mt-2"><i class="fas fa-check mr-2"></i>返却処理を実行</button>`;
+
+  }else{
+    // View only
+    html+=c.items.map(it=>`
+      <div class="card">
+        <div class="font-bold text-sm">${it.product_name}</div>
+        <div class="text-xs text-gray-500">${it.product_code}${it.center_ref?' | 管理#'+it.center_ref:''}</div>
+        <div class="text-xs mt-1">貸出: ${it.quantity} | 返却済: ${it.returned_quantity}</div>
+      </div>`).join('');
+  }
+
+  el.innerHTML=html;
+}
+
+function goBack(){
+  if(user.role==='sales')showPage('my-cases'),loadMyCases();
+  else showPage('cases'),loadCases();
+}
+
+let pickedItems=new Set();
+function togglePick(id){
+  const el=document.getElementById('pick-'+id),icon=document.getElementById('pick-icon-'+id);
+  if(pickedItems.has(id)){pickedItems.delete(id);el.classList.remove('checked');icon.className='fas fa-square text-gray-300 text-xl'}
+  else{pickedItems.add(id);el.classList.add('checked');icon.className='fas fa-check-square text-teal-600 text-xl'}
+}
+
+async function processLend(caseId){
+  const items=Array.from(pickedItems).map(id=>({id,center_ref:document.getElementById('ref-'+id)?.value||''}));
+  const r=await api('/api/cases/'+caseId+'/lend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})});
+  if(r?.success){toast('貸出処理完了');pickedItems.clear();showCaseDetail(caseId)}else toast(r?.error||'エラー');
+}
+
+function adjReturn(id,d,max){
+  const el=document.getElementById('ret-'+id);
+  let v=parseInt(el.textContent)||0;
+  v=Math.max(0,Math.min(max,v+d));
+  el.textContent=v;
+}
+
+async function returnAll(caseId){
+  const c=await api('/api/cases/'+caseId);
+  if(!c)return;
+  const items=c.items.filter(it=>it.quantity-it.returned_quantity>0).map(it=>({id:it.id,return_qty:it.quantity-it.returned_quantity}));
+  if(!items.length){toast('返却するものがありません');return}
+  const r=await api('/api/cases/'+caseId+'/return',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})});
+  if(r?.success){toast('一括返却完了');showCaseDetail(caseId)}else toast(r?.error||'エラー');
+}
+
+async function processReturn(caseId){
+  const c=await api('/api/cases/'+caseId);
+  if(!c)return;
+  const items=c.items.filter(it=>it.quantity-it.returned_quantity>0).map(it=>{
+    const v=parseInt(document.getElementById('ret-'+it.id)?.textContent)||0;
+    return {id:it.id,return_qty:v};
+  }).filter(x=>x.return_qty>0);
+  if(!items.length){toast('返却数を指定してください');return}
+  const r=await api('/api/cases/'+caseId+'/return',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})});
+  if(r?.success){toast('返却処理完了');showCaseDetail(caseId)}else toast(r?.error||'エラー');
+}
+
+// ===================== 入出庫履歴 =====================
+async function loadTransactions(){
+  const el=document.getElementById('page-transactions');
+  el.innerHTML=`<h2 class="text-lg font-bold text-gray-800 mb-3">📊 入出庫履歴</h2>
+    <input type="text" id="txSearch" class="inp mb-3" placeholder="🔍 商品コード・商品名で検索..." oninput="searchTx()">
+    <div id="txList"></div>`;
+  searchTx();
+}
+
+async function searchTx(){
+  const q=document.getElementById('txSearch')?.value||'';
+  const tx=await api('/api/transactions?search='+encodeURIComponent(q));
+  if(!tx)return;
+  document.getElementById('txList').innerHTML=tx.length?'<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="bg-gray-800 text-white"><th class="px-2 py-2">日時</th><th class="px-2 py-2">商品</th><th class="px-2 py-2">種別</th><th class="px-2 py-2 text-right">数量</th><th class="px-2 py-2">案件</th><th class="px-2 py-2">処理者</th></tr></thead><tbody>'+tx.map(t=>`<tr class="border-b">
+    <td class="px-2 py-1.5">${fmtDt(t.processed_at)}</td>
+    <td class="px-2 py-1.5 font-medium">${t.product_name}<br><span class="text-gray-400">${t.product_code}</span></td>
+    <td class="px-2 py-1.5"><span class="${t.type==='out'?'text-red-600':t.type==='in'?'text-green-600':'text-yellow-600'} font-bold">${t.type==='out'?'出庫':t.type==='in'?'入庫':'調整'}</span></td>
+    <td class="px-2 py-1.5 text-right font-bold ${t.type==='out'?'text-red-600':'text-green-600'}">${t.type==='out'?'-':''}${Math.abs(t.quantity)}</td>
+    <td class="px-2 py-1.5">${t.case_name||'-'}</td>
+    <td class="px-2 py-1.5">${t.processor_name}</td>
+  </tr>`).join('')+'</tbody></table></div>':'<p class="text-gray-400 text-center py-8">履歴がありません</p>';
+}
+
+// ===================== 棚卸 =====================
+async function loadInventory(){
+  products=await api('/api/products')||[];
+  const el=document.getElementById('page-inventory');
+  el.innerHTML=`<h2 class="text-lg font-bold text-gray-800 mb-3">📝 棚卸処理</h2>
+    <p class="text-xs text-gray-500 mb-3">実在庫数を入力してください。差異は自動計算されます。入力後→次へ自動フォーカス</p>
+    <div id="invList">${products.filter(p=>p.active).map((p,i)=>`
+      <div class="card">
+        <div class="flex items-center justify-between mb-1">
+          <div><div class="font-bold text-sm">${p.name}</div><div class="text-xs text-gray-500">${p.code}</div></div>
+          <div class="text-right"><div class="text-xs text-gray-500">論理在庫</div><div class="font-bold">${p.stock}</div></div>
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <input type="number" inputmode="numeric" class="inp flex-1 inv-input" data-pid="${p.id}" data-logical="${p.stock}" data-idx="${i}" placeholder="実在庫数" min="0" style="min-height:44px" onchange="calcDiff(this)" onkeydown="invNext(event,${i})">
+          <div class="w-20 text-center"><div class="text-xs text-gray-500">差異</div><div class="font-bold" id="diff-${p.id}">-</div></div>
+        </div>
+        <input type="text" class="inp mt-1" id="memo-${p.id}" placeholder="メモ（任意）" style="min-height:40px;font-size:14px">
+      </div>`).join('')}</div>
+    <button onclick="submitInventory()" class="btn btn-p w-full text-lg mt-3"><i class="fas fa-clipboard-check mr-2"></i>棚卸確定</button>`;
+}
+
+function calcDiff(el){
+  const pid=el.dataset.pid, logical=parseInt(el.dataset.logical)||0;
+  const physical=parseInt(el.value);
+  const diffEl=document.getElementById('diff-'+pid);
+  if(isNaN(physical)){diffEl.textContent='-';diffEl.className='font-bold';return}
+  const d=physical-logical;
+  diffEl.textContent=(d>0?'+':'')+d;
+  diffEl.className='font-bold '+(d>0?'text-green-600':d<0?'text-red-600':'text-gray-600');
+}
+
+function invNext(e,idx){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    const inputs=document.querySelectorAll('.inv-input');
+    if(idx+1<inputs.length)inputs[idx+1].focus();
+  }
+}
+
+async function submitInventory(){
+  const inputs=document.querySelectorAll('.inv-input');
+  const checks=[];
+  inputs.forEach(inp=>{
+    const v=parseInt(inp.value);
+    if(!isNaN(v)){
+      checks.push({product_id:parseInt(inp.dataset.pid),physical:v,memo:document.getElementById('memo-'+inp.dataset.pid)?.value||''});
+    }
+  });
+  if(!checks.length){toast('実在庫数を入力してください');return}
+  const r=await api('/api/inventory-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({checks})});
+  if(r?.success){toast(`棚卸完了: ${r.count}件処理`);loadInventory()}else toast(r?.error||'エラー');
+}
+
+// ===================== 商品マスタ管理 =====================
+async function loadProducts(){
+  products=await api('/api/products')||[];
+  const el=document.getElementById('page-products');
+  el.innerHTML=`<h2 class="text-lg font-bold text-gray-800 mb-3">📦 商品マスタ管理</h2>
+    <div class="flex gap-2 mb-3">
+      <button onclick="showAddProduct()" class="btn btn-p flex-1"><i class="fas fa-plus mr-1"></i>個別登録</button>
+      <button onclick="showCSVUpload()" class="btn btn-o flex-1"><i class="fas fa-file-csv mr-1"></i>CSV一括</button>
+    </div>
+    <div id="prodMasterList">${products.map(p=>`
+      <div class="card flex items-center gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-sm ${p.active?'':'text-gray-400 line-through'}">${p.name}</div>
+          <div class="text-xs text-gray-500">${p.code} | 在庫: ${p.stock}</div>
+        </div>
+        <button onclick="showEditProduct(${p.id})" class="text-teal-600"><i class="fas fa-edit"></i></button>
+      </div>`).join('')}</div>`;
+}
+
+function showAddProduct(){
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-4">📦 商品登録</h3>
+      <div class="space-y-3">
+        <div><label class="text-xs text-gray-500">商品コード</label><input type="text" id="npCode" class="inp" placeholder="PROD-001"></div>
+        <div><label class="text-xs text-gray-500">商品名</label><input type="text" id="npName" class="inp" placeholder="商品名"></div>
+        <div><label class="text-xs text-gray-500">在庫数</label><input type="number" inputmode="numeric" id="npStock" class="inp" placeholder="0" min="0"></div>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button onclick="closeModal()" class="btn btn-o flex-1">キャンセル</button>
+        <button onclick="addProduct()" class="btn btn-p flex-1">登録</button>
+      </div>
+    </div></div>`;
+}
+
+async function addProduct(){
+  const r=await api('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    code:document.getElementById('npCode').value.trim(),
+    name:document.getElementById('npName').value.trim(),
+    stock:parseInt(document.getElementById('npStock').value)||0
+  })});
+  if(r?.success){closeModal();toast('登録しました');loadProducts()}else toast(r?.error||'エラー');
+}
+
+function showEditProduct(id){
+  const p=products.find(x=>x.id===id);if(!p)return;
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-4">✏️ 商品編集</h3>
+      <div class="space-y-3">
+        <div><label class="text-xs text-gray-500">商品コード</label><input type="text" id="epCode" class="inp" value="${p.code}"></div>
+        <div><label class="text-xs text-gray-500">商品名</label><input type="text" id="epName" class="inp" value="${p.name}"></div>
+        <div><label class="text-xs text-gray-500">在庫数</label><input type="number" inputmode="numeric" id="epStock" class="inp" value="${p.stock}" min="0"></div>
+        <div class="flex items-center gap-2"><input type="checkbox" id="epActive" ${p.active?'checked':''}><label class="text-sm">有効</label></div>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button onclick="closeModal()" class="btn btn-o flex-1">キャンセル</button>
+        <button onclick="saveProduct(${p.id})" class="btn btn-p flex-1">保存</button>
+      </div>
+    </div></div>`;
+}
+
+async function saveProduct(id){
+  const r=await api('/api/products/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    code:document.getElementById('epCode').value.trim(),
+    name:document.getElementById('epName').value.trim(),
+    stock:parseInt(document.getElementById('epStock').value)||0,
+    active:document.getElementById('epActive').checked?1:0
+  })});
+  if(r?.success){closeModal();toast('更新しました');loadProducts()}else toast(r?.error||'エラー');
+}
+
+function showCSVUpload(){
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-3">📄 CSV一括登録</h3>
+      <p class="text-xs text-gray-500 mb-2">フォーマット: 商品コード,商品名,在庫数（ヘッダー行あり）</p>
+      <p class="text-xs text-gray-400 mb-3">既存コードは上書き更新、新規コードは新規登録</p>
+      <input type="file" id="csvFile" accept=".csv" class="inp mb-3">
+      <div id="csvResult" class="mb-3"></div>
+      <div class="flex gap-3">
+        <button onclick="closeModal()" class="btn btn-o flex-1">閉じる</button>
+        <button onclick="uploadCSV()" class="btn btn-p flex-1"><i class="fas fa-upload mr-1"></i>アップロード</button>
+      </div>
+    </div></div>`;
+}
+
+async function uploadCSV(){
+  const file=document.getElementById('csvFile').files[0];
+  if(!file){toast('ファイルを選択してください');return}
+  const fd=new FormData();fd.append('file',file);
+  const r=await fetch(B+'/api/products/csv',{method:'POST',body:fd}).then(x=>x.json());
+  if(r?.success){
+    let msg=`新規: ${r.created}件, 更新: ${r.updated}件`;
+    if(r.errors?.length)msg+=`\nエラー: ${r.errors.length}件`;
+    document.getElementById('csvResult').innerHTML=`<div class="p-3 bg-green-50 rounded-lg text-sm text-green-800">${msg}</div>${r.errors?.length?'<div class="mt-2 text-xs text-red-600">'+r.errors.join('<br>')+'</div>':''}`;
+    loadProducts();
+  }else toast(r?.error||'エラー');
+}
+
+// ===================== アカウント管理 =====================
+async function loadUsers(){
+  const users=await api('/api/admin/users');
+  if(!users)return;
+  const ROLES={admin:'管理者',sales:'営業',center:'センター'};
+  const el=document.getElementById('page-users');
+  el.innerHTML=`<h2 class="text-lg font-bold text-gray-800 mb-3">👥 アカウント管理</h2>
+    <button onclick="showAddUser()" class="btn btn-p w-full mb-3"><i class="fas fa-user-plus mr-1"></i>新規アカウント</button>
+    ${users.map(u=>`<div class="card flex items-center gap-3">
+      <div class="flex-1">
+        <div class="font-bold text-sm ${u.active?'':'text-gray-400'}">${u.username} <span class="text-xs px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':u.role==='sales'?'bg-blue-100 text-blue-700':'bg-green-100 text-green-700'}">${ROLES[u.role]||u.role}</span></div>
+      </div>
+      <button onclick="showEditUser(${u.id})" class="text-teal-600"><i class="fas fa-edit"></i></button>
+      ${u.id!==user.id?`<button onclick="delUser(${u.id})" class="text-red-400"><i class="fas fa-trash"></i></button>`:''}
+    </div>`).join('')}`;
+}
+
+function showAddUser(){
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-4">👤 新規アカウント</h3>
+      <div class="space-y-3">
+        <div><label class="text-xs text-gray-500">ユーザー名</label><input type="text" id="nuUser" class="inp"></div>
+        <div><label class="text-xs text-gray-500">パスワード</label><input type="password" id="nuPass" class="inp"></div>
+        <div><label class="text-xs text-gray-500">権限</label><select id="nuRole" class="inp"><option value="sales">営業</option><option value="center">センター</option><option value="admin">管理者</option></select></div>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button onclick="closeModal()" class="btn btn-o flex-1">キャンセル</button>
+        <button onclick="createUser()" class="btn btn-p flex-1">作成</button>
+      </div>
+    </div></div>`;
+}
+
+async function createUser(){
+  const r=await api('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    username:document.getElementById('nuUser').value.trim(),
+    password:document.getElementById('nuPass').value,
+    role:document.getElementById('nuRole').value
+  })});
+  if(r?.success){closeModal();toast('作成しました');loadUsers()}else toast(r?.error||'エラー');
+}
+
+function showEditUser(id){
+  api('/api/admin/users').then(users=>{
+    const u=users?.find(x=>x.id===id);if(!u)return;
+    document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-4">✏️ アカウント編集: ${u.username}</h3>
+      <div class="space-y-3">
+        <div><label class="text-xs text-gray-500">ユーザー名</label><input type="text" id="euUser" class="inp" value="${u.username}"></div>
+        <div><label class="text-xs text-gray-500">パスワード（変更時のみ）</label><input type="password" id="euPass" class="inp" placeholder="変更しない場合は空欄"></div>
+        <div><label class="text-xs text-gray-500">権限</label><select id="euRole" class="inp"><option value="sales" ${u.role==='sales'?'selected':''}>営業</option><option value="center" ${u.role==='center'?'selected':''}>センター</option><option value="admin" ${u.role==='admin'?'selected':''}>管理者</option></select></div>
+        <div class="flex items-center gap-2"><input type="checkbox" id="euActive" ${u.active?'checked':''}><label class="text-sm">有効</label></div>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button onclick="closeModal()" class="btn btn-o flex-1">キャンセル</button>
+        <button onclick="saveUser(${u.id})" class="btn btn-p flex-1">保存</button>
+      </div>
+    </div></div>`;
+  });
+}
+
+async function saveUser(id){
+  const body={username:document.getElementById('euUser').value.trim(),role:document.getElementById('euRole').value,active:document.getElementById('euActive').checked?1:0};
+  const pw=document.getElementById('euPass').value;if(pw)body.password=pw;
+  const r=await api('/api/admin/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r?.success){closeModal();toast('更新しました');loadUsers()}else toast(r?.error||'エラー');
+}
+
+async function delUser(id){
+  if(!confirm('このアカウントを削除しますか？'))return;
+  const r=await api('/api/admin/users/'+id,{method:'DELETE'});
+  if(r?.success){toast('削除しました');loadUsers()}
+}
+
+// ===================== 通知 =====================
+async function updateNotifCount(){
+  const r=await api('/api/notifications/count');
+  if(!r)return;
+  const badge=document.getElementById('notifBadge');
+  if(r.count>0){badge.textContent=r.count;badge.classList.remove('hidden')}
+  else badge.classList.add('hidden');
+}
+
+async function toggleNotif(){
+  const popup=document.getElementById('notifPopup');
+  notifOpen=!notifOpen;
+  if(notifOpen){
+    popup.classList.remove('hidden');
+    const notifs=await api('/api/notifications');
+    document.getElementById('notifList').innerHTML=notifs?.length?notifs.map(n=>`
+      <div class="p-2 hover:bg-gray-50 rounded-lg cursor-pointer border-b text-sm" onclick="handleNotif(${n.id},${n.case_id})">
+        <div class="font-medium">${n.message}</div>
+        <div class="text-xs text-gray-400">${fmtDt(n.created_at)}</div>
+      </div>`).join(''):'<p class="text-gray-400 text-sm p-4 text-center">通知はありません</p>';
+  }else popup.classList.add('hidden');
+}
+
+async function handleNotif(nid,caseId){
+  await api('/api/notifications/'+nid+'/read',{method:'POST'});
+  document.getElementById('notifPopup').classList.add('hidden');notifOpen=false;
+  updateNotifCount();
+  showCaseDetail(caseId);
+}
+
+// ===================== 設定 =====================
+function showSettings(){
+  const ROLES={admin:'管理者',sales:'営業',center:'センター'};
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-content">
+      <h3 class="text-lg font-bold mb-4">⚙️ 設定</h3>
+      <div class="space-y-2 mb-4">
+        <div class="flex justify-between py-2 border-b"><span class="text-sm">ユーザー</span><span class="font-bold text-sm">${user.username}</span></div>
+        <div class="flex justify-between py-2 border-b"><span class="text-sm">権限</span><span class="text-sm">${ROLES[user.role]||user.role}</span></div>
+      </div>
+      <button onclick="closeModal();regPasskey()" class="btn btn-p w-full mb-2"><i class="fas fa-fingerprint mr-2"></i>パスキーを登録</button>
+      <button onclick="doLogout()" class="btn btn-d w-full mb-2"><i class="fas fa-sign-out-alt mr-2"></i>ログアウト</button>
+      <button onclick="closeModal()" class="btn btn-o w-full">閉じる</button>
+    </div></div>`;
+}
+
+async function doLogout(){await api('/api/auth/logout',{method:'POST'});location.href=B+'/login'}
+
+// ===================== パスキー =====================
+function b2a(b){const s=b.replace(/-/g,'+').replace(/_/g,'/');const r=atob(s);const a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a.buffer}
+function a2b(b){const a=new Uint8Array(b);let s='';a.forEach(v=>s+=String.fromCharCode(v));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')}
+
+async function regPasskey(){
+  try{
+    if(!window.PublicKeyCredential){toast('パスキー非対応');return}
+    const optR=await fetch(B+'/api/passkey/register-options',{method:'POST',headers:{'Content-Type':'application/json'}});
+    const opt=await optR.json();
+    opt.challenge=b2a(opt.challenge);opt.user.id=b2a(opt.user.id);
+    if(opt.excludeCredentials)opt.excludeCredentials=opt.excludeCredentials.map(c=>({...c,id:b2a(c.id)}));
+    const cred=await navigator.credentials.create({publicKey:opt});
+    const body={id:cred.id,rawId:a2b(cred.rawId),type:cred.type,
+      response:{clientDataJSON:a2b(cred.response.clientDataJSON),attestationObject:a2b(cred.response.attestationObject),transports:cred.response.getTransports?.()},
+      clientExtensionResults:cred.getClientExtensionResults()};
+    const r=await fetch(B+'/api/passkey/register-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d.success)toast('パスキー登録完了 ✅');else toast(d.error||'登録失敗');
+  }catch(e){if(e.name==='NotAllowedError')toast('キャンセル');else toast(e.message)}
+}
+
+// ===================== ナビ構築 + 初期化 =====================
+function buildNav(){
+  const nav=document.getElementById('bottomNav');
+  let items=[];
+  if(user.role==='sales'){
+    items=[{page:'new-request',icon:'fa-edit',label:'新規依頼',load:loadNewRequest},{page:'my-cases',icon:'fa-boxes-stacked',label:'案件一覧',load:loadMyCases}];
+  }else if(user.role==='center'){
+    items=[{page:'cases',icon:'fa-inbox',label:'依頼一覧',load:loadCases},{page:'transactions',icon:'fa-exchange-alt',label:'入出庫',load:loadTransactions},{page:'inventory',icon:'fa-clipboard-check',label:'棚卸',load:loadInventory}];
+  }else if(user.role==='admin'){
+    items=[{page:'cases',icon:'fa-inbox',label:'案件',load:loadCases},{page:'products',icon:'fa-box',label:'商品',load:loadProducts},{page:'transactions',icon:'fa-exchange-alt',label:'入出庫',load:loadTransactions},{page:'inventory',icon:'fa-clipboard-check',label:'棚卸',load:loadInventory},{page:'users',icon:'fa-users-cog',label:'アカウント',load:loadUsers}];
+  }
+  nav.innerHTML=items.map(it=>`<div class="nav-item" data-page="${it.page}" onclick="navTo('${it.page}')"><i class="fas ${it.icon}"></i><span>${it.label}</span></div>`).join('');
+  window._navItems=items;
+}
+
+function navTo(page){
+  showPage(page);
+  const item=window._navItems?.find(x=>x.page===page);
+  if(item?.load)item.load();
+}
+
+// Init
+(async()=>{
+  const r=await api('/api/auth/me');
+  if(!r||!r.logged_in){location.href=B+'/login';return}
+  user=r.user;
+  buildNav();
+  updateNotifCount();
+  setInterval(updateNotifCount,30000);
+  // Default page
+  const first=window._navItems?.[0];
+  if(first){navTo(first.page)}
+})();
+
+// Close notif popup on outside click
+document.addEventListener('click',e=>{
+  if(notifOpen&&!e.target.closest('#notifPopup')&&!e.target.closest('.fa-bell')&&!e.target.closest('button')){
+    document.getElementById('notifPopup').classList.add('hidden');notifOpen=false;
+  }
+});
+</script>
+</body>
+</html>
