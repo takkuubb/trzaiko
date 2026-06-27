@@ -220,6 +220,14 @@ app.post(`${BASE}/api/cases/:id/return`, auth, center, (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+
+app.post(`${BASE}/api/cases/:id/undo-return`, auth, center, (req, res) => {
+  try {
+    db.undoReturn(req.params.id, req.session.user.id);
+    res.json({ success: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // === Transactions ===
 app.get(`${BASE}/api/transactions`, auth, (req, res) => {
   const r = req.session.user.role;

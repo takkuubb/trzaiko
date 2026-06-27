@@ -303,7 +303,7 @@ async function showCaseDetail(id){
           <div class="text-xs text-gray-500">貸出: ${it.quantity} | 返却済: ${it.returned_quantity} | 残: ${remaining}</div>
           ${remaining>0?`<div class="flex items-center gap-2">
             <div class="qty-btn qty-minus" onclick="adjReturn(${it.id},-1,${remaining})">−</div>
-            <span class="w-8 text-center font-bold" id="ret-${it.id}">0</span>
+            <input type="number" min="0" max="${remaining}" value="0" id="ret-${it.id}" class="w-12 text-center font-bold border rounded py-1" style="min-height:32px;-moz-appearance:textfield" oninput="clampReturn(${it.id},${remaining})" onclick="this.select()">
             <div class="qty-btn qty-plus" onclick="adjReturn(${it.id},1,${remaining})">＋</div>
           </div>`:'<span class="text-green-600 text-xs font-bold">完了</span>'}
         </div>
@@ -319,9 +319,39 @@ async function showCaseDetail(id){
         <div class="text-xs text-gray-500">${it.product_code}${it.center_ref?' | 管理#'+it.center_ref:''}</div>
         <div class="text-xs mt-1">貸出: ${it.quantity} | 返却済: ${it.returned_quantity}</div>
       </div>`).join('');
+    // Undo return button (center/admin only, returned cases)
+    if(c.status==='returned'&&(user.role==='center'||user.role==='admin')){
+      html+=`<button onclick="undoReturn(${c.id})" class="btn w-full mt-3" style="background:#f59e0b;color:#fff"><i class="fas fa-undo mr-2"></i>返却前に戻す（貸出中に戻す）</button>`;
+    }
   }
 
   el.innerHTML=html;
+}
+
+function confirmModal(title,bodyHtml){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div');
+    overlay.className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+    overlay.innerHTML=`<div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      <h3 class="text-lg font-bold mb-3">${title}</h3>
+      <div class="mb-4">${bodyHtml}</div>
+      <div class="flex gap-3">
+        <button class="btn btn-o flex-1" id="confirmNo">キャンセル</button>
+        <button class="btn btn-p flex-1" id="confirmYes">実行する</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#confirmYes').onclick=()=>{document.body.removeChild(overlay);resolve(true)};
+    overlay.querySelector('#confirmNo').onclick=()=>{document.body.removeChild(overlay);resolve(false)};
+    overlay.onclick=e=>{if(e.target===overlay){document.body.removeChild(overlay);resolve(false)}};
+  });
+}
+
+async function undoReturn(caseId){
+  const ok=await confirmModal('返却取消の確認','<p class="text-sm text-gray-600">この案件の返却処理を取り消し、<strong>貸出中</strong>の状態に戻します。</p><p class="text-sm text-red-500 mt-2">※ 在庫数も返却前の状態に戻ります。</p>');
+  if(!ok)return;
+  const r=await api('/api/cases/'+caseId+'/undo-return',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  if(r?.success){toast('返却を取り消しました');showCaseDetail(caseId)}else toast(r?.error||'エラー');
 }
 
 function goBack(){
@@ -338,15 +368,29 @@ function togglePick(id){
 
 async function processLend(caseId){
   const items=Array.from(pickedItems).map(id=>({id,center_ref:document.getElementById('ref-'+id)?.value||''}));
+  // Confirmation modal
+  const caseData=await api('/api/cases/'+caseId);
+  if(!caseData)return;
+  const rows=caseData.items.map(it=>`<tr class="border-b"><td class="py-1 text-sm">${it.product_name}</td><td class="py-1 text-right font-bold">${it.quantity}</td><td class="py-1 text-right text-xs text-gray-500">${it.product_code}</td></tr>`).join('');
+  const ok=await confirmModal('貸出処理の確認',`<p class="text-sm text-gray-600 mb-3">以下の商品を貸出します。よろしいですか？</p>
+    <div class="text-sm font-bold mb-2">${caseData.name}</div>
+    <table class="w-full text-xs"><thead class="bg-gray-100"><tr><th class="py-1 text-left">商品名</th><th class="py-1 text-right">数量</th><th class="py-1 text-right">コード</th></tr></thead><tbody>${rows}</tbody></table>`);
+  if(!ok)return;
   const r=await api('/api/cases/'+caseId+'/lend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})});
   if(r?.success){toast('貸出処理完了');pickedItems.clear();showCaseDetail(caseId)}else toast(r?.error||'エラー');
 }
 
 function adjReturn(id,d,max){
   const el=document.getElementById('ret-'+id);
-  let v=parseInt(el.textContent)||0;
+  let v=parseInt(el.value)||0;
   v=Math.max(0,Math.min(max,v+d));
-  el.textContent=v;
+  el.value=v;
+}
+function clampReturn(id,max){
+  const el=document.getElementById('ret-'+id);
+  let v=parseInt(el.value)||0;
+  if(v<0)v=0;if(v>max)v=max;
+  el.value=v;
 }
 
 async function returnAll(caseId){
@@ -362,7 +406,7 @@ async function processReturn(caseId){
   const c=await api('/api/cases/'+caseId);
   if(!c)return;
   const items=c.items.filter(it=>it.quantity-it.returned_quantity>0).map(it=>{
-    const v=parseInt(document.getElementById('ret-'+it.id)?.textContent)||0;
+    const v=parseInt(document.getElementById('ret-'+it.id)?.value)||0;
     return {id:it.id,return_qty:v};
   }).filter(x=>x.return_qty>0);
   if(!items.length){toast('返却数を指定してください');return}

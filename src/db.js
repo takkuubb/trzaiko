@@ -279,6 +279,31 @@ function processReturn(caseId, userId, returnItems) {
   return tx();
 }
 
+
+function undoReturn(caseId, userId) {
+  const d = getDb();
+  const tx = d.transaction(() => {
+    const c = d.prepare('SELECT * FROM cases WHERE id=? AND status=?').get(caseId, 'returned');
+    if (!c) throw new Error('案件が見つからないか、返却完了状態ではありません');
+    // Get all items and their returned quantities
+    const items = d.prepare('SELECT * FROM case_items WHERE case_id=?').all(caseId);
+    const stmtReset = d.prepare('UPDATE case_items SET returned_quantity=0 WHERE id=?');
+    const stmtTx = d.prepare("INSERT INTO stock_transactions (product_id, case_id, type, quantity, processed_by, memo) VALUES(?,?,?,?,?,?)");
+    const stmtStock = d.prepare("UPDATE products SET stock = stock - ?, updated_at=datetime('now','localtime') WHERE id=?");
+    for (const item of items) {
+      if (item.returned_quantity > 0) {
+        stmtStock.run(item.returned_quantity, item.product_id);
+        stmtTx.run(item.product_id, caseId, 'out', item.returned_quantity, userId, '返却取消');
+        stmtReset.run(item.id);
+      }
+    }
+    d.prepare("UPDATE cases SET status='lending', returned_by=NULL, returned_at=NULL WHERE id=?").run(caseId);
+    d.prepare('INSERT INTO notifications (user_id, case_id, type, message) VALUES(?,?,?,?)').run(c.requested_by, caseId, 'status_change', `案件「${c.name}」の返却が取り消されました（貸出中に戻りました）`);
+    return true;
+  });
+  return tx();
+}
+
 // === Stock Transactions ===
 function listTransactions(filters) {
   const conds = [], params = [];
@@ -364,7 +389,7 @@ module.exports = {
   getDb, authenticate, getUser, listUsers, createUser, updateUser, deleteUser,
   getPasskeysByUser, savePasskey, getPasskeyByCred, updatePasskeyCounter,
   listProducts, getProduct, getProductByCode, createProduct, updateProduct, upsertProductCSV,
-  createCase, getCase, listCases, processLending, processReturn,
+  createCase, getCase, listCases, processLending, processReturn, undoReturn,
   listTransactions, processInventoryCheck, listInventoryChecks,
   getUnreadCount, listNotifications, markNotificationRead, markCaseNotificationsRead
 };
